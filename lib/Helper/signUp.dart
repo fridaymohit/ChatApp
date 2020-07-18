@@ -1,8 +1,12 @@
 import 'package:chatapp/Helper/chatRoom.dart';
+import 'package:chatapp/Helper/database.dart';
+import 'package:chatapp/Helper/sharedData.dart';
+import 'package:email_validator/email_validator.dart';
 import 'package:flutter/material.dart';
 import 'signIn.dart';
 import 'package:chatapp/loader/loader1.dart';
 import 'package:chatapp/service/auth.dart';
+
 
 class SignUpScreen extends StatefulWidget{
 
@@ -10,8 +14,9 @@ class SignUpScreen extends StatefulWidget{
   final Color backgroundColor2 = Color(0xFF6f6c7d);
   final Color highlightColor = Color(0xfff65aa3);
   final Color foregroundColor= Colors.white;
-  
+  final Function toggle;
 
+  SignUpScreen(this.toggle);
 
   @override
   _SignUpScreenState createState() => _SignUpScreenState();
@@ -24,22 +29,80 @@ class _SignUpScreenState extends State<SignUpScreen> {
   TextEditingController emailTextEditingController = new TextEditingController();
   TextEditingController passwordTextEditingController = new TextEditingController();
   bool isLoading = false;
+  
 
   AuthMethod authMethod = new AuthMethod();
+  DataBaseMethod dataBaseMethod = new DataBaseMethod();
+
+  
 
   signUp(){
 
-    if(formKey.currentState.validate()){
-      setState(() {
+    if((EmailValidator.validate(emailTextEditingController.text))&&(formKey.currentState.validate())){
+     setState(() {
         isLoading = true;
       });
-    }
-    authMethod.signUpEmail(emailTextEditingController.text , passwordTextEditingController.text).then((val){
+    
+    authMethod.signUpEmail(emailTextEditingController.text , passwordTextEditingController.text,usernameTextEditingController.text).then((val){
+     
+       if(val.userId=="_+_"){
+          showDialogue("Warning","This Username is already taken");
+        }
+        else if(val.userId=="___"){
+          
+          showDialogue("Warning","This email is already registered");
+        }
+        else {
+        Map<String,dynamic> map = {
+          "email" : emailTextEditingController.text,
+          "name" : usernameTextEditingController.text,
+          "isVerified" : false,
+        };
+        dataBaseMethod.uploadUserInfo(map);
+        showDialogue("Info", "verify your email and Log In");
         
-        Navigator.pushReplacement(context,
-         MaterialPageRoute( builder: (context) => chatRoom()) );
+    }
+    setState(() {
+      isLoading = false;
     });
-  }   
+    
+    });
+  }
+  
+  }
+showDialogue(String type,String alert) {
+  return showDialog<void>(
+    context: context,
+    barrierDismissible: true,
+    builder: (BuildContext context) {
+      return AlertDialog(
+        backgroundColor: widget.backgroundColor1,
+        title: Text(type ,style: TextStyle(
+          color: Colors.white,
+        ),textAlign: TextAlign.center,),
+        content: SingleChildScrollView(
+          child: ListBody(
+            children: <Widget>[
+              Text(alert , style: TextStyle(
+                color: Colors.white
+              ),),
+              
+            ],
+          ),
+        ),
+        actions: <Widget>[
+          FlatButton(
+            child: Text('Ok'),
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+          ),
+        ],
+      );
+    },
+  );
+}   
+
 
   @override
   Widget build(BuildContext context) {
@@ -68,10 +131,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     )
         ]
       )
-    ) : SingleChildScrollView(
-            child : Column(
-        children : <Widget>[ 
-        Container(
+    ) :  Container(
       decoration: new BoxDecoration(
         gradient: new LinearGradient(
           begin: Alignment.centerLeft,
@@ -81,10 +141,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
         ),
       ),
       height: MediaQuery.of(context).size.height,
-      child: Column(
+      child: ListView(
+        scrollDirection: Axis.vertical,
         children: <Widget>[
           Container(
-            padding: const EdgeInsets.only(top: 100.0, bottom: 50.0),
+            padding: const EdgeInsets.only(top: 130.0, bottom: 50.0),
             child: Center(
               child: new Column(
                 children: <Widget>[
@@ -156,7 +217,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 new Expanded(
                   child: TextFormField(
                     validator: (val){
-                      return val.isEmpty || val.length <5 || !RegExp(r'^[a-zA-Z0-9]*$').hasMatch(val) ? "length should be > 4" : null;
+                      return val.isEmpty || val.length <5 || !RegExp(r'^\S*$').hasMatch(val) ? "length should be > 4" : null;
                     },
                     controller: usernameTextEditingController,
                     textAlign: TextAlign.center,
@@ -198,7 +259,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 new Expanded(
                   child: TextFormField(
                     validator: (val){
-                      return RegExp(r'^(([^<>()[\]\\.,;:\s@\"]+(\.[^<>()[\]\\.,;:\s@\"]+)*)|(\".+\"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$').hasMatch(val) ? null : "Provide valid email";
+                      return RegExp(r'^\S*$').hasMatch(val) ? null : "Provide valid email";
                     },
                     controller: emailTextEditingController,
                     textAlign: TextAlign.center,
@@ -254,7 +315,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 ),
               ],
             ),
-          )
+          ),
+           Padding(
+             padding: EdgeInsets.only(
+             bottom: MediaQuery.of(context).viewInsets.bottom))
           ]
           )
           ),
@@ -284,8 +348,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
             ),
           ),
           
-          new Expanded(child: Divider(),),
-
+         SizedBox(height : 20),
           new Container(
             width: MediaQuery.of(context).size.width,
             margin: const EdgeInsets.only(left: 40.0, right: 40.0, top: 10.0, bottom: 20.0),
@@ -297,7 +360,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     padding: const EdgeInsets.symmetric(
                         vertical: 20.0, horizontal: 20.0),
                     color: Colors.transparent,
-                    onPressed: () => { Navigator.push(context, MaterialPageRoute(builder: (context) => SignInScreen())) },
+                    onPressed: () => widget.toggle(),
                     child: Text(
                       "Already have account? Signin now",
                       style: TextStyle(color: widget.foregroundColor.withOpacity(0.5)),
@@ -310,12 +373,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
         ],
       ),
     )
-        ]
-      )
-    )
-    
+        
       
     );
+    
+      
+    
   }
 }
 

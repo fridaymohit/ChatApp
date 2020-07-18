@@ -1,5 +1,13 @@
+import 'package:chatapp/Helper/database.dart';
+import 'package:chatapp/Helper/forgetPass.dart';
+import 'package:chatapp/Helper/sharedData.dart';
+import 'package:chatapp/loader/loader1.dart';
+import 'package:chatapp/service/auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'chatRoom.dart';
 import 'signUp.dart';
+import 'package:email_validator/email_validator.dart';
 
 
 
@@ -9,17 +17,127 @@ class SignInScreen extends StatefulWidget{
   final Color backgroundColor2 = Color(0xFF6f6c7d);
   final Color highlightColor = Color(0xfff65aa3);
   final Color foregroundColor= Colors.white;
+
+  final Function toggle;
+
+  SignInScreen(this.toggle);
   
   @override
   _SignInScreenState createState() => _SignInScreenState();
 }
 
 class _SignInScreenState extends State<SignInScreen> {
+
+  AuthMethod authMethod = new AuthMethod();
+  DataBaseMethod dataBaseMethod = new DataBaseMethod();
+  TextEditingController emailTextEditingController = new TextEditingController();
+  TextEditingController passwordTextEditingController = new TextEditingController();
+  final formkey = GlobalKey<FormState>();
+  QuerySnapshot querySnapshot;
+  bool isLoading = false;
+
+
+
+ showDialogue(String alert) {
+  return showDialog<void>(
+    context: context,
+    barrierDismissible: true,
+    builder: (BuildContext context) {
+      return AlertDialog(
+        backgroundColor: widget.backgroundColor1,
+        title: Text('Warning' ,style: TextStyle(
+          color: Colors.white,
+        ),textAlign: TextAlign.center,),
+        content: SingleChildScrollView(
+          child: ListBody(
+            children: <Widget>[
+              Text(alert , style: TextStyle(
+                color: Colors.white
+              ),),
+              
+            ],
+          ),
+        ),
+        actions: <Widget>[
+          FlatButton(
+            child: Text('Exit'),
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+          ),
+        ],
+      );
+    },
+  );
+}   
+  
+
+
+
+  signIn(){
+
+      if((EmailValidator.validate(emailTextEditingController.text))&&(formkey.currentState.validate())){
+
+        sharedMethod.setEmailPreference(emailTextEditingController.text);
+        setState(() {
+          isLoading = true;
+        });
+        authMethod.signInEmail(emailTextEditingController.text, passwordTextEditingController.text).then((val){
+            if(val!=null){
+              sharedMethod.setLogInPreference(true);
+              dataBaseMethod.getUserbyEmail(emailTextEditingController.text).then((val){
+                  setState(() {
+                    querySnapshot = val;
+                  });
+                  sharedMethod.setNamePreference(querySnapshot.documents[0].data["name"]);
+              });
+              
+               Navigator.pushReplacement(context,
+         MaterialPageRoute( builder: (context) => chatRoom()) );
+            }
+            else{
+              showDialogue("wrong username or password");
+            }
+              
+              setState(() {
+                isLoading = false;
+              });
+            
+        });
+
+      }
+  }
+
   @override
   Widget build(BuildContext context) {
     return new Scaffold(
-    resizeToAvoidBottomPadding: false,  
-    body : Container(
+    resizeToAvoidBottomPadding: false,
+    resizeToAvoidBottomInset: false,
+    
+    body : isLoading ? Container(
+     decoration: new BoxDecoration(
+        gradient: new LinearGradient(
+          begin: Alignment.centerLeft,
+          end: new Alignment(1.0, 0.0), // 10% of the width, so there are ten blinds.
+          colors: [widget.backgroundColor1, widget.backgroundColor2], // whitish to gray
+          tileMode: TileMode.repeated, // repeats the gradient over the canvas
+        ),
+      ),
+      height: MediaQuery.of(context).size.height,
+      width: MediaQuery.of(context).size.width,
+      child: Column( 
+        children : <Widget>[
+          SizedBox(
+            height: MediaQuery.of(context).size.height*0.4,
+          ),
+          ColorLoader(
+      color1: Colors.redAccent,
+      color2: Colors.deepPurple,
+      color3: Colors.green,
+    )
+        ]
+      )
+    ) : Container(
       decoration: new BoxDecoration(
         gradient: new LinearGradient(
           begin: Alignment.centerLeft,
@@ -29,10 +147,12 @@ class _SignInScreenState extends State<SignInScreen> {
         ),
       ),
       height: MediaQuery.of(context).size.height,
-      child: Column(
+      child: ListView(
+        
+        scrollDirection: Axis.vertical,
         children: <Widget>[
           Container(
-            padding: const EdgeInsets.only(top: 150.0, bottom: 50.0),
+            padding: const EdgeInsets.only(top: 130.0, bottom: 55.0),
             child: Center(
               child: new Column(
                 children: <Widget>[
@@ -71,6 +191,10 @@ class _SignInScreenState extends State<SignInScreen> {
               ),
             ),
           ),
+          Form(
+          key : formkey,  
+          child : Column(
+          children: <Widget>[  
           new Container(
             width: MediaQuery.of(context).size.width,
             margin: const EdgeInsets.only(left: 40.0, right: 40.0),
@@ -97,11 +221,15 @@ class _SignInScreenState extends State<SignInScreen> {
                   ),
                 ),
                 new Expanded(
-                  child: TextField(
+                  child: TextFormField(
+                    validator: (val){
+                      return RegExp(r'^\S*$').hasMatch(val) ? null : "Provide valid email";
+                    },
+                    controller: emailTextEditingController,
                     textAlign: TextAlign.center,
                     decoration: InputDecoration(
                       border: InputBorder.none,
-                      hintText: 'username/email',
+                      hintText: 'email',
                       hintStyle: TextStyle(color: widget.foregroundColor),
                     ),
                   ),
@@ -109,6 +237,7 @@ class _SignInScreenState extends State<SignInScreen> {
               ],
             ),
           ),
+        
           new Container(
             width: MediaQuery.of(context).size.width,
             margin: const EdgeInsets.only(left: 40.0, right: 40.0, top: 10.0),
@@ -135,7 +264,11 @@ class _SignInScreenState extends State<SignInScreen> {
                   ),
                 ),
                 new Expanded(
-                  child: TextField(
+                  child: TextFormField(
+                    validator: (val) {
+                      return val.length <8 || !RegExp(r'^\S*$').hasMatch(val) ? "Password length should be >=8 " : null;
+                    },
+                    controller: passwordTextEditingController,
                     obscureText: true,
                     textAlign: TextAlign.center,
                     decoration: InputDecoration(
@@ -147,6 +280,12 @@ class _SignInScreenState extends State<SignInScreen> {
                 ),
               ],
             ),
+          ),
+           Padding(
+             padding: EdgeInsets.only(
+             bottom: MediaQuery.of(context).viewInsets.bottom))
+          ]
+          )
           ),
           new Container(
             width: MediaQuery.of(context).size.width,
@@ -161,7 +300,9 @@ class _SignInScreenState extends State<SignInScreen> {
                         vertical: 20.0, horizontal: 20.0),
                     color: widget.highlightColor,
                     
-                    onPressed: () => {},
+                    onPressed: () => {
+                      signIn()
+                    },
                     child: Text(
                       "Log In",
                       style: TextStyle(color: widget.foregroundColor),
@@ -183,9 +324,13 @@ class _SignInScreenState extends State<SignInScreen> {
                     padding: const EdgeInsets.symmetric(
                         vertical: 20.0, horizontal: 20.0),
                     color: Colors.transparent,
-                    onPressed: () => {},
+                    onPressed: () => {
+                      Navigator.push(context, MaterialPageRoute(
+                        builder: (context) => forgetPass()
+                      ))
+                    },
                     child: Text(
-                      "Forgot your password?",
+                      "Forgot Password?",
                       style: TextStyle(color: widget.foregroundColor.withOpacity(0.5)),
                     ),
                   ),
@@ -194,7 +339,7 @@ class _SignInScreenState extends State<SignInScreen> {
             ),
           ),
           
-          new Expanded(child: Divider(),),
+         SizedBox(height: 20,),
 
           new Container(
             width: MediaQuery.of(context).size.width,
@@ -207,7 +352,7 @@ class _SignInScreenState extends State<SignInScreen> {
                     padding: const EdgeInsets.symmetric(
                         vertical: 20.0, horizontal: 20.0),
                     color: Colors.transparent,
-                    onPressed: () => { Navigator.push(context, MaterialPageRoute(builder: (context) => SignUpScreen())) },
+                    onPressed: () => widget.toggle(),
                     child: Text(
                       "Don't have an account? Create One",
                       style: TextStyle(color: widget.foregroundColor.withOpacity(0.5)),
